@@ -80,6 +80,7 @@ ds_install_package(PACKAGE org.deepin.ds.dock TARGET dockpanel)
 ds_handle_package_translation(PACKAGE org.deepin.ds.dock)
 
 # sub plugins
+add_subdirectory(appruntimeitem)
 add_subdirectory(clipboarditem)
 add_subdirectory(workspaceitem)
 add_subdirectory(searchitem)

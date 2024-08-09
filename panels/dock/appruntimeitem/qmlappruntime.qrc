@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/ddeshell">
+        <file>package/appruntimeitem_test.qml</file>
+    </qresource>
+</RCC>
