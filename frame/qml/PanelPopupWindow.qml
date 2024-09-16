@@ -60,7 +60,8 @@ Window {
     D.DWindow.enableSystemResize: false
     D.DWindow.enableBlurWindow: true
     // TODO set shadowOffset maunally.
-    D.DWindow.shadowOffset: Qt.point(0, 10)
+    D.DWindow.shadowOffset: Qt.point(0, 25)
+    D.DWindow.shadowColor: D.DTK.themeType === D.ApplicationHelper.DarkType ? Qt.rgba(0, 0, 0, 0.5) : Qt.rgba(0, 0, 0, 0.2)
     D.ColorSelector.family: D.Palette.CrystalColor
 
     color: "transparent"
@@ -123,6 +124,10 @@ Window {
             return appearance.opacity
         }
         blendColor: {
+            // TODO: when dtk support treeland blur, remove following
+            if (Qt.platform.pluginName === "wayland")
+                return "transparent"
+
             if (valid) {
                 return DStyle.Style.control.selectColor(undefined,
                                                     Qt.rgba(235 / 255.0, 235 / 255.0, 235 / 255.0, blendColorAlpha(0.6)),

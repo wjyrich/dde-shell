@@ -19,7 +19,7 @@ AppletItem {
     property int dockOrder: 3
     implicitWidth: Panel.rootObject.useColumnLayout ? dockSize : 30 
     implicitHeight: Panel.rootObject.useColumnLayout ? 30 : dockSize
-    property bool shouldVisible: Applet.visible
+    property bool shouldVisible: Applet.visible && Panel.itemAlignment === Dock.CenterAlignment
 
     property D.Palette toolButtonColor: DockPalette.toolButtonColor
     property D.Palette toolButtonBorderColor: DockPalette.toolButtonBorderColor
@@ -60,15 +60,14 @@ AppletItem {
                 toolTip.close()
             }
         }
-    }
 
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        onClicked: {
-            platformMenuLoader.active = true
-            platformMenuLoader.item.open()
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.RightButton
+            onClicked: {
+                platformMenuLoader.active = true
+                platformMenuLoader.item.open()
+            }
         }
     }
 

@@ -62,10 +62,10 @@ add_library(dock-taskmanager SHARED ${DBUS_INTERFACES}
     desktopfileparserfactory.h
     taskmanager.cpp
     taskmanager.h
-    waylandwindow.cpp
-    waylandwindow.h
-    waylandwindowmonitor.cpp
-    waylandwindowmonitor.h
+    treelandwindow.cpp
+    treelandwindow.h
+    treelandwindowmonitor.cpp
+    treelandwindowmonitor.h
     taskmanagersettings.cpp
     taskmanagersettings.h
 )
@@ -107,5 +107,6 @@ if (BUILD_WITH_X11)
 endif(BUILD_WITH_X11)
 
 ds_install_package(PACKAGE org.deepin.ds.dock.taskmanager TARGET dock-taskmanager)
-dtk_add_config_meta_files(APPID org.deepin.ds.dock FILES dconfig/org.deepin.ds.dock.taskmanager.json)
+dtk_add_config_meta_files(APPID org.deepin.ds.dock FILES dconfig/org.deepin.ds.dock.taskmanager.json) # compat
+dtk_add_config_meta_files(APPID org.deepin.dde.shell FILES dconfig/org.deepin.ds.dock.taskmanager.json)
 ds_handle_package_translation(PACKAGE org.deepin.ds.dock.taskmanager)

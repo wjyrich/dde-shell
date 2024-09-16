@@ -17,7 +17,6 @@ import org.deepin.dtk.style 1.0 as DStyle
 
 Window {
     id: dock
-    visible: Panel.hideState != Dock.Hide
     property bool useColumnLayout: Applet.position % 2
     // TODO: 临时溢出逻辑，待后面修改
     property int dockLeftSpaceForCenter: useColumnLayout ? 
@@ -36,6 +35,8 @@ Window {
 
     property bool isDragging: false
 
+    property real dockItemIconSize: dockItemMaxSize * 9 / 14
+
     // NOTE: -1 means not set its size, follow the platform size
     width: Panel.position == Dock.Top || Panel.position == Dock.Bottom ? -1 : dockSize
     height: Panel.position == Dock.Left || Panel.position == Dock.Right ? -1 : dockSize
@@ -52,9 +53,11 @@ Window {
     DLayerShellWindow.anchors: position2Anchors(Applet.position)
     DLayerShellWindow.layer: DLayerShellWindow.LayerTop
     DLayerShellWindow.exclusionZone: Panel.hideMode === Dock.KeepShowing ? Applet.dockSize : 0
+    DLayerShellWindow.scope: "dde-shell/dock"
 
     D.DWindow.enabled: true
     D.DWindow.windowRadius: 0
+    D.DWindow.borderWidth: 1
     D.DWindow.enableBlurWindow: true
     D.DWindow.themeType: Panel.colorTheme
     D.DWindow.borderColor: D.DTK.themeType === D.ApplicationHelper.DarkType ? Qt.rgba(0, 0, 0, dock.blendColorAlpha(0.6) + 20 / 255) : Qt.rgba(0, 0, 0, 0.15)
@@ -81,6 +84,10 @@ Window {
         anchors.fill: parent
         cornerRadius: 0
         blendColor: {
+            // TODO: when dtk support treeland blur, remove following
+            if (Qt.platform.pluginName === "wayland")
+                return "transparent"
+
             if (valid) {
                 return DStyle.Style.control.selectColor(undefined,
                                                     Qt.rgba(235 / 255.0, 235 / 255.0, 235 / 255.0, dock.blendColorAlpha(0.6)),
@@ -90,13 +97,6 @@ Window {
                                                 DStyle.Style.behindWindowBlur.lightNoBlurColor,
                                                 DStyle.Style.behindWindowBlur.darkNoBlurColor)
         }
-    }
-
-    D.InsideBoxBorder {
-        anchors.fill: parent
-        // TODO 小数倍缩放下可能会导致边框时有时无，设置0.5的margin规避，不过可能会导致内外边框之间多1px的填充，不是完美的解决方案
-        anchors.margins: 0.5
-        color: D.DTK.themeType === D.ApplicationHelper.DarkType ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, dock.blendColorAlpha(0.6) - 0.05)
     }
 
     PropertyAnimation {
@@ -253,8 +253,7 @@ Window {
             }
             if (button === Qt.LeftButton) {
                 // try to close popup when clicked empty, because dock does not have focus.
-                if (Panel.popupWindow.visible)
-                    Panel.popupWindow.close()
+                Panel.requestClosePopup()
             }
         }
     }
@@ -286,12 +285,12 @@ Window {
         columns: 1
         rows: 1
         flow: useColumnLayout ? GridLayout.LeftToRight : GridLayout.TopToBottom
-        columnSpacing: 10
-        rowSpacing: 10
+        property real itemMargin: Math.max((dockItemIconSize / 48 * 10))
+        columnSpacing: dockLeftPartModel.count > 0 ? 10 : itemMargin
+        rowSpacing: columnSpacing
 
         Item {
             id: leftMargin
-            visible: dockLeftPartModel.count > 0
             implicitWidth: 0
             implicitHeight: 0
         }
@@ -379,15 +378,12 @@ Window {
         }
 
         onPressed: function(mouse) {
-            var launcherItem = DS.applet("org.deepin.ds.launchpad")
-            if (launcherItem && launcherItem.rootObject) {
-                launcherItem.rootObject.hide()
-            }
             dock.isDragging = true
             oldMousePos = mapToGlobal(mouse.x, mouse.y)
             oldDockSize = dockSize
             recentDeltas = []
-            Panel.setMouseGrabEnabled(dragArea, true);
+            Panel.requestClosePopup()
+            DS.grabMouse(Panel.rootObject, true)
         }
 
         // this used for blocking MouseEvent sent to bottom MouseArea
@@ -434,7 +430,7 @@ Window {
             Applet.dockSize = dockSize
             itemIconSizeBase = dockItemMaxSize
             pressedAndDragging(false)
-            Panel.setMouseGrabEnabled(dragArea, false);
+            DS.grabMouse(Panel.rootObject, false)
         }
 
         function anchorToTop() {
@@ -493,7 +489,7 @@ Window {
     Connections {
         function onPositionChanged() {
             changeDragAreaAnchor()
-            closeSubWindow()
+            Panel.requestClosePopup()
         }
         function onDockSizeChanged() {
             dock.dockSize = Panel.dockSize
@@ -503,13 +499,16 @@ Window {
             if (Panel.hideState === Dock.Hide) {
                 hideTimer.running = true
             } else {
-                hideShowAnimation.running = true
+                hideShowAnimation.restart()
             }
         }
-        function closeSubWindow() {
-            if (Panel.popupWindow)
-                Panel.popupWindow.close()
+        function onRequestClosePopup() {
+            let popup = Panel.popupWindow
+            DS.closeChildrenWindows(popup)
+            if (popup && popup.visible)
+                popup.close()
         }
+
         target: Panel
     }
 
@@ -557,7 +556,7 @@ Window {
         })
 
         dock.itemIconSizeBase = dock.dockItemMaxSize
-
+        dock.visible = Panel.hideState !== Dock.Hide
         changeDragAreaAnchor()
     }
 }

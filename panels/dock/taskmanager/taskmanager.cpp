@@ -12,7 +12,7 @@
 #include "taskmanageradaptor.h"
 #include "desktopfileamparser.h"
 #include "taskmanagersettings.h"
-#include "waylandwindowmonitor.h"
+#include "treelandwindowmonitor.h"
 #include "abstractwindowmonitor.h"
 #include "desktopfileparserfactory.h"
 
@@ -47,9 +47,6 @@ TaskManager::TaskManager(QObject* parent)
     qDBusRegisterMetaType<PropMap>();
     qDBusRegisterMetaType<QDBusObjectPath>();
 
-    connect(ItemModel::instance(), &ItemModel::itemAdded, this, &TaskManager::itemsChanged);
-    connect(ItemModel::instance(), &ItemModel::itemRemoved, this, &TaskManager::itemsChanged);
-
     connect(Settings, &TaskManagerSettings::allowedForceQuitChanged, this, &TaskManager::allowedForceQuitChanged);
     connect(Settings, &TaskManagerSettings::windowSplitChanged, this, &TaskManager::windowSplitChanged);
 }
@@ -59,7 +56,7 @@ bool TaskManager::load()
     loadDockedAppItems();
     auto platformName = QGuiApplication::platformName();
     if (QStringLiteral("wayland") == platformName) {
-        m_windowMonitor.reset(new WaylandWindowMonitor());
+        m_windowMonitor.reset(new TreeLandWindowMonitor());
     }
 
 #ifdef BUILD_WITH_X11
@@ -182,11 +179,15 @@ bool TaskManager::allowForceQuit()
     return Settings->isAllowedForceQuit();
 }
 
+QString TaskManager::desktopIdToAppId(const QString& desktopId)
+{
+    return Q_LIKELY(desktopId.endsWith(".desktop")) ? desktopId.chopped(8) : desktopId;
+}
+
 bool TaskManager::requestDockByDesktopId(const QString& appID)
 {
     if (appID.startsWith("internal/")) return false;
-    QString dockAppId(Q_LIKELY(appID.endsWith(".desktop")) ? appID.chopped(8) : appID);
-    return RequestDock(dockAppId);
+    return RequestDock(desktopIdToAppId(appID));
 }
 
 bool TaskManager::RequestDock(QString appID)

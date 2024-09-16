@@ -51,19 +51,10 @@ Item {
             if (arg && toolTipWindow.visible)
                 toolTipWindow.close()
         }
-        onUpdateGeometryFinished: function ()
-        {
+        onUpdateGeometryFinished: function () {
             if (!menu.shellSurface)
                 return
             menu.shellSurface.updatePluginGeometry(Qt.rect(menu.menuWindow.x, menu.menuWindow.y, 0, 0))
-        }
-        SurfaceSubPopup {
-            objectName: "stashed's subPopup"
-            surfaceAcceptor: function (surfaceId) {
-                if (root.surfaceAcceptor && !root.surfaceAcceptor(surfaceId))
-                    return false
-                return true
-            }
         }
     }
     PanelMenu {
@@ -81,6 +72,18 @@ Item {
                 menu.close()
             }
         }
+        Loader {
+            active: menu.menuVisible
+            sourceComponent: SurfaceSubPopup {
+                objectName: "stashed's subPopup"
+                transientParent: menuWindow
+                surfaceAcceptor: function (surfaceId) {
+                    if (root.surfaceAcceptor && !root.surfaceAcceptor(surfaceId))
+                        return false
+                    return true
+                }
+            }
+        }
     }
 
     WaylandOutput {
@@ -91,8 +94,7 @@ Item {
 
     Connections {
         target: DockCompositor
-        function onPopupCreated(popupSurface)
-        {
+        function onPopupCreated(popupSurface) {
             let surfaceId = `${popupSurface.pluginId}::${popupSurface.itemKey}`
             if (surfaceAcceptor && !surfaceAcceptor(surfaceId))
                 return

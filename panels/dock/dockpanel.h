@@ -12,11 +12,7 @@
 
 namespace dock {
 class DockHelper;
-const QStringList pluginDirs = {
-    "/usr/lib/dde-dock/plugins/",
-    "/usr/lib/dde-dock/plugins/quick-trays/",
-    "/usr/lib/dde-dock/plugins/system-trays/"
-};
+class LoadTrayPlugins;
 
 class DockPanel : public DS_NAMESPACE::DPanel, public QDBusContext
 {
@@ -76,7 +72,6 @@ public:
     bool debugMode() const;
 
     Q_INVOKABLE void openDockSettings() const;
-    Q_INVOKABLE void setMouseGrabEnabled(QQuickItem *item, bool enabled);
 
     bool showInPrimary() const;
     void setShowInPrimary(bool newShowInPrimary);
@@ -87,7 +82,6 @@ public:
 
 private Q_SLOTS:
     void onWindowGeometryChanged();
-    void loadDockPlugins();
     void launcherVisibleChanged(bool visible);
     void updateDockScreen();
 
@@ -105,12 +99,14 @@ Q_SIGNALS:
     void indicatorStyleChanged(IndicatorStyle style);
     void showInPrimaryChanged(bool showInPrimary);
     void dockScreenChanged(QScreen *screen);
+    void requestClosePopup();
 
 private:
     ColorTheme m_theme;
     HideState m_hideState;
     DockHelper* m_helper;
     QScreen *m_dockScreen;
+    LoadTrayPlugins *m_loadTrayPlugins;
     bool m_compositorReady;
     bool m_launcherShown;
 };

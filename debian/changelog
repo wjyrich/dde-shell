@@ -1,3 +1,69 @@
+dde-shell (0.0.43) unstable; urgency=medium
+
+  * bump version to 0.0.43
+
+ -- Deepin Packages Builder <packages@deepin.org>  Thu, 29 Aug 2024 10:41:01 +0800
+
+dde-shell (0.0.42) unstable; urgency=medium
+
+  * feat: tooltip and preview call to treeland
+  * fix: animation when drag from launchpad to dock
+
+ -- tsic404 <liuheng@deepin.org>  Fri, 23 Aug 2024 16:45:08 +0800
+
+dde-shell (0.0.41) unstable; urgency=medium
+
+  * fix: incorrect animation application when dragging(Issue: 10330)
+  * fix: Dock following mouse display error when modifying SmartHide(Issue: 10404)
+  * fix: plugin process is pulled up again after crashed(Issue: 10400)
+  * fix: modify panel popup shadow offset and color(Issue: 10325)
+  * fix: forced exit is invalid(Issue: 10436)
+  * fix: searchItem right click response range is too large(Issue: 10294)
+  * fix: pupup surface doesn't release(Issue: 10121)
+  * chore: adjust iconSize for quickpanel(Issue: 9852)
+
+ -- Deepin Packages Builder <packages@deepin.org>  Wed, 21 Aug 2024 17:32:09 +0800
+
+dde-shell (0.0.40) unstable; urgency=medium
+
+  * fix: incorrect height for quickpanel's childplugin(Issue: 10036)
+  * fix: incorrect backgroundColor for quickpanel's item (#696)(Issue: 10379)
+
+ -- Deepin Packages Builder <packages@deepin.org>  Wed, 14 Aug 2024 14:18:35 +0800
+
+dde-shell (0.0.39) unstable; urgency=medium
+
+  * chore: disable hide force-docked item(Issue: 10371)
+
+ -- Deepin Packages Builder <packages@deepin.org>  Tue, 13 Aug 2024 20:43:29 +0800
+
+dde-shell (0.0.38) unstable; urgency=medium
+
+  * chore: move network plugin to pinned area(Issue: 10355)
+  * feat: hide search, clipboard and workspace when leftAlignment(Issue: 10363)
+
+ -- Deepin Packages Builder <packages@deepin.org>  Tue, 13 Aug 2024 16:04:21 +0800
+
+dde-shell (0.0.37) unstable; urgency=medium
+
+  * fix: temporary revert application name change
+
+ -- Deepin Packages Builder <packages@deepin.org>  Tue, 13 Aug 2024 10:48:37 +0800
+
+dde-shell (0.0.36) unstable; urgency=medium
+
+  * bump version to 0.0.36
+
+ -- Deepin Packages Builder <packages@deepin.org>  Thu, 08 Aug 2024 19:31:54 +0800
+
+dde-shell (0.0.35) unstable; urgency=medium
+
+  * fix: dock covered by fullscreen launchpad(Issue: 10222)
+  * fix: drag plugin item cause plugin's event blocked (#663)(Issue: 9819)(Influence: dragging plugin and plugin item display)
+  * chore: change the default order of system tray(Issue: 10049)
+
+ -- Deepin Packages Builder <packages@deepin.org>  Thu, 08 Aug 2024 15:15:13 +0800
+
 dde-shell (0.0.34) unstable; urgency=medium
 
   * chore: hide tray plugins by default(Issue: #10049)

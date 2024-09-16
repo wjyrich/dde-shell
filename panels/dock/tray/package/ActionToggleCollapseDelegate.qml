@@ -13,6 +13,9 @@ AppletItemButton {
     id: root
     property bool isHorizontal: false
     property bool collapsed: DDT.TraySortOrderModel.collapsed
+    property bool inputEventsEnabled: true
+    hoverEnabled: inputEventsEnabled
+    autoClosePopup: true
 
     z: 5
 
@@ -21,6 +24,7 @@ AppletItemButton {
     padding: itemPadding
 
     onClicked: {
+        DDT.TraySortOrderModel.isCollapsing = true
         DDT.TraySortOrderModel.collapsed = !DDT.TraySortOrderModel.collapsed
         toolTip.close()
     }
@@ -62,6 +66,7 @@ AppletItemButton {
     }
     HoverHandler {
         id: hoverHandler
+        enabled: root.inputEventsEnabled
         onHoveredChanged: {
             if (hovered) {
                 toolTipShowTimer.start()

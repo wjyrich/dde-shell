@@ -20,9 +20,10 @@ Item {
     required property var model
     signal requestBack()
     property int subPluginMinHeight
+    property int headerMargin: 10
 
     Component.onCompleted: {
-        var surfaceMinHeight = subPluginMinHeight - titleLayer.height
+        var surfaceMinHeight = subPluginMinHeight - titleLayer.height - headerMargin
         shellSurface.setEmbedPanelMinHeight(surfaceMinHeight)
     }
 
@@ -36,12 +37,12 @@ Item {
             id: titleLayer
             Layout.fillWidth: true
             Layout.leftMargin: 8
-            Layout.topMargin: 10
+            Layout.topMargin: headerMargin
             Layout.rightMargin: 12
             ActionButton {
                 id: actionBtn
-                Layout.preferredWidth: 16
-                Layout.preferredHeight: 16
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 20
                 icon.name: "arrow_ordinary_left"
                 icon.width: 12
                 icon.height: 12

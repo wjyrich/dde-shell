@@ -52,8 +52,8 @@ QString AppItem::type() const
 
 QString AppItem::icon() const
 {
-    if (m_currentActiveWindow.isNull() || m_desktopfileParser->isValied().first)
-        return m_desktopfileParser->desktopIcon();
+    if (m_currentActiveWindow.isNull() || (m_desktopfileParser && m_desktopfileParser->isValied().first))
+        return m_desktopfileParser ? m_desktopfileParser->desktopIcon() : "application-default-icon";
     else {
         return m_currentActiveWindow->icon();
     }
@@ -225,11 +225,7 @@ void AppItem::launch()
 void AppItem::requestQuit()
 {
     for (auto window : m_windows) {
-        window->close();
-    }
-
-    if(m_desktopfileParser && !m_desktopfileParser.isNull()) {
-        m_desktopfileParser->requestQuit();
+        window->killClient();
     }
 }
 

@@ -82,12 +82,7 @@ void ItemModel::moveTo(const QString &id, int dIndex)
     if (sIndex == dIndex) {
         return;
     }
-    if (sIndex + 1 == dIndex) {
-        // Do not move from sIndex to sIndex + 1, as endMoveRows is not trivial, this operation equals do nothing.
-        // FIXME: maybe this is a bug of Qt? but swap these two is a compatible fix
-        std::swap(sIndex, dIndex);
-    }
-    beginMoveRows(QModelIndex(), sIndex, sIndex, QModelIndex(), dIndex);
+    beginMoveRows(QModelIndex(), sIndex, sIndex, QModelIndex(), dIndex > sIndex ? (dIndex + 1) : dIndex);
     m_items.move(sIndex, dIndex);
     endMoveRows();
 
@@ -138,7 +133,6 @@ void ItemModel::addItem(QPointer<AbstractItem> item)
     beginInsertRows(QModelIndex(), rowCount(), rowCount());
     m_items.append(item);
     endInsertRows();
-    Q_EMIT itemAdded();
 }
 
 void ItemModel::onItemDestroyed()
@@ -152,7 +146,6 @@ void ItemModel::onItemDestroyed()
     beginRemoveRows(QModelIndex(), beginIndex, lastIndex);
     m_items.removeAll(item);
     endRemoveRows();
-    Q_EMIT itemRemoved();
 }
 
 void ItemModel::onItemChanged()

@@ -98,6 +98,7 @@ public:
 
 int main(int argc, char *argv[])
 {
+    setenv("DSG_APP_ID", "org.deepin.dde.shell", 0);
     DGuiApplicationHelper::setAttribute(DGuiApplicationHelper::UseInactiveColorGroup, false);
     QApplication a(argc, argv);
     a.setOrganizationName("deepin");
@@ -180,6 +181,7 @@ int main(int argc, char *argv[])
     }
 
     Shell shell;
+    shell.dconfigsMigrate();
     // TODO disable qml's cache avoid to parsing error for ExecutionEngine.
     shell.disableQmlCache();
     shell.setFlickableWheelDeceleration(6000);

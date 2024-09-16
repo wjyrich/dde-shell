@@ -15,6 +15,23 @@ Control {
     property size visualSize: Qt.size(0, 0)
 
     property point visualPosition: DDT.TrayItemPositionRegister.visualPosition
+    property bool isDragging: DDT.TraySortOrderModel.actionsAlwaysVisible
+    property bool animationEnable: true
+
+    onIsDraggingChanged: {
+        animationEnable = !isDragging
+        animationEnableTimer.start()
+    }
+
+    Timer {
+        id: animationEnableTimer
+        interval: 10
+        repeat: false
+        onTriggered: {
+            animationEnable = true
+        }
+    }
+
     DDT.TrayItemPositionRegister.visualIndex: (model.sectionType !== "stashed") ? model.visualIndex : -1
     DDT.TrayItemPositionRegister.visualSize: (model.sectionType !== "stashed") ? Qt.size(width, height) : Qt.size(0, 0)
     DDT.TrayItemPositionRegister.surfaceId: model.surfaceId
@@ -26,10 +43,12 @@ Control {
     x: visualPosition.x
     y: visualPosition.y
     Behavior on x {
-        NumberAnimation { duration: 200; easing.type: collapsed ? Easing.OutQuad : Easing.InQuad }
+        enabled: isHorizontal && animationEnable
+        NumberAnimation { duration: 200; easing.type: collapsed || !DDT.TraySortOrderModel.isCollapsing ? Easing.OutQuad : Easing.InQuad }
     }
     Behavior on y {
-        NumberAnimation { duration: 200; easing.type: collapsed ? Easing.OutQuad : Easing.InQuad }
+        enabled: !isHorizontal && animationEnable
+        NumberAnimation { duration: 200; easing.type: collapsed || !DDT.TraySortOrderModel.isCollapsing ? Easing.OutQuad : Easing.InQuad }
     }
     states: [
         State {
@@ -51,10 +70,14 @@ Control {
             SequentialAnimation {
                 NumberAnimation { properties: "opacity,scale"; easing.type: Easing.OutQuad; duration: 200 }
                 PropertyAction { target: root; property: "visible"; value: false }
+                PropertyAction { target: DDT.TraySortOrderModel; property: "isCollapsing"; value: false }
             }
         },
         Transition {
-            NumberAnimation { properties: "opacity,scale"; easing.type: Easing.InQuad; duration: 200 }
+            SequentialAnimation {
+                NumberAnimation { properties: "opacity,scale"; easing.type: Easing.InQuad; duration: 200 }
+                PropertyAction { target: DDT.TraySortOrderModel; property: "isCollapsing"; value: false }
+            }
         }
     ]
 }

@@ -19,8 +19,8 @@ Item {
     property var surfaceFilter: function (surfaceId) {
         return false
     }
-    function closeTooltip()
-    {
+    readonly property bool isOpened: popup.popupVisible
+    function closeTooltip() {
         if (toolTip.toolTipVisible) {
             toolTip.close()
         }
@@ -65,20 +65,23 @@ Item {
                     popupMenu.close()
                 }
             }
-            SurfaceSubPopup {
-                objectName: "tray's subPopup"
-                transientParent: popupMenu.menuWindow
-                surfaceAcceptor: function (surfaceId) {
-                    if (root.surfaceAcceptor && !root.surfaceAcceptor(surfaceId))
-                        return false
-                    return true
+            Loader {
+                active: popupMenu.menuVisible
+                sourceComponent: SurfaceSubPopup {
+                    objectName: "tray's subPopup"
+                    transientParent: popupMenu.menuWindow
+                    surfaceAcceptor: function (surfaceId) {
+                        if (root.surfaceAcceptor && !root.surfaceAcceptor(surfaceId))
+                            return false
+                        return true
+                    }
                 }
             }
+
             Connections {
                 target: popupMenu.menuWindow
                 enabled: popupMenu.readyBinding
-                function onUpdateGeometryFinished()
-                {
+                function onUpdateGeometryFinished() {
                     if (!popupMenu.shellSurface)
                         return
 
@@ -106,8 +109,7 @@ Item {
 
     Connections {
         target: DockCompositor
-        function onPopupCreated(popupSurface)
-        {
+        function onPopupCreated(popupSurface) {
             let surfaceId = `${popupSurface.pluginId}::${popupSurface.itemKey}`
             if (surfaceAcceptor && !surfaceAcceptor(surfaceId))
                 return

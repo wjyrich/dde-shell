@@ -17,15 +17,13 @@ class AppItem;
 class TaskManager : public DS_NAMESPACE::DContainment
 {
     Q_OBJECT
-    Q_PROPERTY(ItemModel* dataModel READ dataModel NOTIFY itemsChanged)
+    Q_PROPERTY(ItemModel* dataModel READ dataModel NOTIFY dataModelChanged)
 
     Q_PROPERTY(bool windowSplit READ windowSplit NOTIFY windowSplitChanged)
     Q_PROPERTY(bool allowForceQuit READ allowForceQuit NOTIFY allowedForceQuitChanged)
 
 public:
     explicit TaskManager(QObject* parent = nullptr);
-
-    QStringList getDockedItems();
 
     ItemModel* dataModel();
 
@@ -35,6 +33,7 @@ public:
     bool windowSplit();
     bool allowForceQuit();
 
+    Q_INVOKABLE QString desktopIdToAppId(const QString& desktopId);
     Q_INVOKABLE bool requestDockByDesktopId(const QString& appID);
     Q_INVOKABLE bool RequestDock(QString appID);
     Q_INVOKABLE bool IsDocked(QString appID);
@@ -47,7 +46,7 @@ public:
     Q_INVOKABLE void setAppItemWindowIconGeometry(const QString& appid, QObject* relativePositionItem, const int& x1, const int& y1, const int& x2, const int& y2);
 
 Q_SIGNALS:
-    void itemsChanged();
+    void dataModelChanged();
     void windowSplitChanged();
     void allowedForceQuitChanged();
 
