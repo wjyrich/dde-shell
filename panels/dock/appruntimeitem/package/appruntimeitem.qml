@@ -11,14 +11,40 @@ import org.deepin.ds.dock 1.0
 
 AppletItem {
     id: appruntimeitem
-    property int dockSize: Applet.parent.dockSize
+    property int dockSize: Panel.rootObject.dockSize
     property int dockOrder: 1
-    implicitWidth: dockSize
-    implicitHeight: dockSize
+    implicitWidth: Panel.rootObject.useColumnLayout ? dockSize : 30
+    implicitHeight: Panel.rootObject.useColumnLayout ? 30 : dockSize
+    property bool shouldVisible: Applet.visible
+    property D.Palette toolButtonColor: DockPalette.toolButtonColor
+    property D.Palette toolButtonBorderColor: DockPalette.toolButtonBorderColor
 
-    D.ActionButton {
-        anchors.fill: parent
-        icon.name: "appruntimeitem"
-        onClicked: Applet.toggleruntimeitem()
+    PanelToolTip {
+        id: toolTip
+        text: qsTr("app_runtime")
+        toolTipX: DockPanelPositioner.x
+        toolTipY: DockPanelPositioner.y
+    }
+    AppletItemButton {
+        id: button
+        anchors.centerIn: parent
+        icon.name: "qrc:/ddeshell/package/icons/appruntime.svg"
+
+        isActive: Applet.appruntimeVisible
+
+        onClicked: {
+            Applet.toggleruntimeitem()
+            toolTip.close()
+        }
+
+        onHoveredChanged: {
+            if (hovered) {
+                var point = Applet.rootObject.mapToItem(null, Applet.rootObject.width / 2, Applet.rootObject.height / 2)
+                toolTip.DockPanelPositioner.bounding = Qt.rect(point.x, point.y, toolTip.width, toolTip.height)
+                toolTip.open()
+            } else {
+                toolTip.close()
+            }
+        }
     }
 }
