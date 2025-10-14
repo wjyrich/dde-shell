@@ -49,9 +49,14 @@ NotificationManager::NotificationManager(QObject *parent)
     , m_persistence(DataAccessorProxy::instance())
     , m_setting(new NotificationSetting(this))
     , m_pendingTimeout(new QTimer(this))
+    , m_cleanupTimer(new QTimer(this))
 {
     m_pendingTimeout->setSingleShot(true);
     connect(m_pendingTimeout, &QTimer::timeout, this, &NotificationManager::onHandingPendingEntities);
+    
+    m_cleanupTimer->setInterval(1000); 
+    connect(m_cleanupTimer, &QTimer::timeout, this, &NotificationManager::onCleanupExpiredNotifications);
+    m_cleanupTimer->start();
 
     DataAccessorProxy::instance()->setSource(DBAccessor::instance());
 
@@ -77,6 +82,7 @@ NotificationManager::NotificationManager(QObject *parent)
     m_systemApps = config->value("systemApps").toStringList();
     // TODO temporary fix for AppNamesMap
     m_appNamesMap = config->value("AppNamesMap").toMap();
+    m_cleanupDays = config->value("notificationCleanupDays", 7).toInt();
 
     if (QStringLiteral("wayland") != QGuiApplication::platformName()) {
         initScreenLockedState();
@@ -457,6 +463,8 @@ void NotificationManager::updateEntityProcessed(qint64 id, uint reason)
     if (entity.isValid()) {
         if ((reason == NotifyEntity::Closed || reason == NotifyEntity::Dismissed) && entity.processedType() == NotifyEntity::NotProcessed) {
             entity.setProcessedType(NotifyEntity::Removed);
+        } else if (reason == NotifyEntity::Timeout) {
+            entity.setProcessedType(NotifyEntity::Removed);
         } else {
             entity.setProcessedType(NotifyEntity::Processed);
         }
@@ -673,6 +681,26 @@ void NotificationManager::removePendingEntity(const NotifyEntity &entity)
 void NotificationManager::onScreenLockedChanged(bool screenLocked)
 {
     m_screenLocked = screenLocked;
+}
+
+void NotificationManager::onCleanupExpiredNotifications()
+{    
+    const qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    const qint64 cleanupDaysInMs = m_cleanupDays * 24 * 60 * 60 * 1000;
+    const qint64 cutoffTime = currentTime - cleanupDaysInMs;
+    
+    while (true) {
+        auto firstEntity = m_persistence->fetchFirstEntity(NotifyEntity::Processed);
+        
+        if (!firstEntity.isValid()) {
+            break;
+        }
+        
+        if (firstEntity.cTime() > cutoffTime) {
+            break;
+        }
+        notificationClosed(firstEntity.id(), firstEntity.bubbleId(), NotifyEntity::Timeout);
+    }
 }
 
 } // notification

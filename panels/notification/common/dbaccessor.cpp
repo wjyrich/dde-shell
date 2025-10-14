@@ -443,6 +443,29 @@ NotifyEntity DBAccessor::fetchLastEntity(uint notifyId)
     return {};
 }
 
+NotifyEntity DBAccessor::fetchFirstEntity(int processedType)
+{
+    BENCHMARK();
+
+    QMutexLocker locker(&m_mutex);
+    QSqlQuery query(m_connection);
+    
+    QString cmd = QString("SELECT %1 FROM notifications2 WHERE (ProcessedType = :processedType OR ProcessedType IS NULL) ORDER BY CTime ASC LIMIT 1").arg(EntityFields.join(","));
+    query.prepare(cmd);
+    query.bindValue(":processedType", processedType);
+
+    if (!query.exec()) {
+        qWarning(notifyDBLog) << "Query execution error:" << query.lastError().text();
+        return {};
+    }
+
+    if (query.next()) {
+        auto entity = parseEntity(query);
+        return entity;
+    }
+    return {};
+}
+
 QList<QString> DBAccessor::fetchApps(int maxCount) const
 {
     BENCHMARK();

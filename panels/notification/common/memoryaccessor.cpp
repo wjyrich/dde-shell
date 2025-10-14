@@ -4,6 +4,7 @@
 
 #include "memoryaccessor.h"
 #include <QDebug>
+#include <limits>
 
 namespace notification
 {
@@ -100,6 +101,22 @@ NotifyEntity MemoryAccessor::fetchLastEntity(uint notifyId)
     if (iter != m_entities.rend())
         return *iter;
     return {};
+}
+
+NotifyEntity MemoryAccessor::fetchFirstEntity(int processedType)
+{
+    QMutexLocker locker(&m_mutex);
+    NotifyEntity firstEntity;
+    qint64 earliestTime = std::numeric_limits<qint64>::max();
+    
+    for (const auto &entity : m_entities) {
+        if (entity.processedType() == processedType && entity.cTime() < earliestTime) {
+            earliestTime = entity.cTime();
+            firstEntity = entity;
+        }
+    }
+
+    return firstEntity.isValid() ? firstEntity : NotifyEntity{};
 }
 
 QList<NotifyEntity> MemoryAccessor::fetchEntities(const QString &appName, int processedType, int maxCount)

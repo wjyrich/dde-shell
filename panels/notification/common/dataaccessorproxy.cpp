@@ -116,6 +116,15 @@ NotifyEntity DataAccessorProxy::fetchLastEntity(uint notifyId)
     return m_source->fetchLastEntity(notifyId);
 }
 
+NotifyEntity DataAccessorProxy::fetchFirstEntity(int processedType)
+{
+    if (processedType == NotifyEntity::NotProcessed) {
+        return m_impl->fetchFirstEntity(processedType);
+    } else {
+        return m_source->fetchFirstEntity(processedType);
+    }
+}
+
 QList<NotifyEntity> DataAccessorProxy::fetchEntities(const QString &appName, int processedType, int maxCount)
 {
     if (processedType == NotifyEntity::NotProcessed) {
