@@ -71,7 +71,7 @@ DockGlobalElementModel::DockGlobalElementModel(QAbstractItemModel *appsModel, Do
                 if (it != m_data.end()) {
                     *it = std::make_tuple(desktopId, m_activeAppModel, i);
                     auto pIndex = this->index(it - m_data.begin(), 0);
-                    Q_EMIT dataChanged(pIndex, pIndex, {TaskManager::ActiveRole, TaskManager::AttentionRole, TaskManager::WindowsRole, TaskManager::MenusRole});
+                    Q_EMIT dataChanged(pIndex, pIndex, {TaskManager::ActiveRole, TaskManager::AttentionRole, TaskManager::WindowsRole, TaskManager::MenusRole, TaskManager::WinTitleRole});
 
                 } else {
                     beginInsertRows(QModelIndex(), m_data.size(), m_data.size());
@@ -123,7 +123,7 @@ DockGlobalElementModel::DockGlobalElementModel(QAbstractItemModel *appsModel, Do
                         *it = std::make_tuple(id, m_appsModel, row);
                         Q_EMIT dataChanged(pIndex,
                                            pIndex,
-                                           {TaskManager::ActiveRole, TaskManager::AttentionRole, TaskManager::WindowsRole, TaskManager::MenusRole});
+                                           {TaskManager::ActiveRole, TaskManager::AttentionRole, TaskManager::WindowsRole, TaskManager::MenusRole, TaskManager::WinTitleRole});
                     }
                 } else {
                     beginRemoveRows(QModelIndex(), pos, pos);
@@ -303,7 +303,11 @@ QString DockGlobalElementModel::getMenus(const QModelIndex &index) const
         if (TaskManagerSettings::instance()->isAllowedForceQuit()) {
             menusArray.append(QJsonObject{{"id", DOCK_ACTION_FORCEQUIT}, {"name", tr("Force Quit")}});
         }
-        menusArray.append(QJsonObject{{"id", DOCK_ACTION_CLOSEALL}, {"name", tr("Close All")}});
+        if (TaskManagerSettings::instance()->isWindowSplit()) {
+            menusArray.append(QJsonObject{{"id", DOCK_ACTION_CLOSEWINDOW}, {"name", tr("Close")}});
+        } else {
+            menusArray.append(QJsonObject{{"id", DOCK_ACTION_CLOSEALL}, {"name", tr("Close All")}});
+        }
     }
 
     return QJsonDocument(menusArray).toJson();
@@ -330,6 +334,12 @@ QVariant DockGlobalElementModel::data(const QModelIndex &index, int role) const
     case TaskManager::WindowsRole: {
         if (model == m_activeAppModel) {
             return QStringList{model->index(row, 0).data(TaskManager::WinIdRole).toString()};
+        }
+    }
+    case TaskManager::WinTitleRole: {
+        // Only active windows have window titles
+        if (model == m_activeAppModel) {
+            return model->index(row, 0).data(TaskManager::WinTitleRole);
         }
         // For m_appsModel data, when it's GroupModel we can directly get all window IDs for this desktop ID
         QModelIndex groupIndex = model->index(row, 0);
@@ -362,6 +372,49 @@ void DockGlobalElementModel::requestActivate(const QModelIndex &index) const
         if (auto interface = dynamic_cast<AbstractTaskManagerInterface*>(sourceModel)) {
             auto sourceIndex = sourceModel->index(sourceRow, 0);
             interface->requestNewInstance(sourceIndex, "");
+        }
+    }
+}
+
+void DockGlobalElementModel::requestNewInstance(const QModelIndex &index, const QString &action) const
+{
+    auto data = m_data.value(index.row());
+    auto id = std::get<0>(data);
+    auto sourceModel = std::get<1>(data);
+    auto sourceRow = std::get<2>(data);
+
+    // Handle special actions first (for both active and docked apps)
+    if (action == DOCK_ACTION_DOCK) {
+        TaskManagerSettings::instance()->toggleDockedElement(QStringLiteral("desktop/%1").arg(id));
+        return;
+    } else if (action == DOCK_ACTION_FORCEQUIT) {
+        requestClose(index, true);
+        return;
+    } else if (action == DOCK_ACTION_CLOSEWINDOW || action == DOCK_ACTION_CLOSEALL) {
+        requestClose(index, false);
+        return;
+    }
+
+    //应用自身处理的action
+    if (!action.isEmpty()) {
+        QProcess process;
+        process.setProcessChannelMode(QProcess::MergedChannels);
+        process.start("dde-am", {"--by-user", id, action});
+        process.waitForFinished();
+        return;
+    }
+
+    // Handle launch/activate (empty action)
+    if (sourceModel == m_activeAppModel) {
+        auto sourceIndex = sourceModel->index(sourceRow, 0);
+        m_activeAppModel->requestNewInstance(sourceIndex, action);
+    } else {
+        QString dbusPath = QStringLiteral("/org/desktopspec/ApplicationManager1/") + escapeToObjectPath(id);
+        using Application = org::desktopspec::ApplicationManager1::Application;
+        Application appInterface(QStringLiteral("org.desktopspec.ApplicationManager1"), dbusPath, QDBusConnection::sessionBus());
+
+        if (appInterface.isValid()) {
+            appInterface.Launch(QString(), QStringList(), QVariantMap());
         }
     }
 }
