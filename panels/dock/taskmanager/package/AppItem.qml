@@ -380,8 +380,20 @@ Item {
         id: contextMenuLoader
         active: false
         property bool trashEmpty: true
+        onActiveChanged: {
+            console.warn("[AppItem] contextMenuLoader active changed:", active,
+                         "item:", contextMenuLoader.item,
+                         "itemId:", root.itemId)
+        }
         sourceComponent: LP.Menu {
             id: contextMenu
+            onAboutToShow: {
+                console.warn("[AppItem] contextMenu aboutToShow, itemId:", root.itemId,
+                             "menuItems count:", menuItemInstantiator.count)
+            }
+            onAboutToHide: {
+                console.warn("[AppItem] contextMenu aboutToHide, itemId:", root.itemId)
+            }
             Instantiator {
                 id: menuItemInstantiator
                 model: JSON.parse(menus)
@@ -473,10 +485,20 @@ Item {
     }
 
     function requestAppItemMenu() {
+        console.warn("[AppItem] requestAppItemMenu called, itemId:", root.itemId,
+                     "menus:", root.menus,
+                     "contextMenuLoader.active:", contextMenuLoader.active,
+                     "contextMenuLoader.item:", contextMenuLoader.item)
         Panel.requestClosePopup()
         contextMenuLoader.trashEmpty = TaskManager.isTrashEmpty()
         contextMenuLoader.active = true
-        MenuHelper.openMenu(contextMenuLoader.item)
+        console.warn("[AppItem] requestAppItemMenu: contextMenuLoader set active=true, item:", contextMenuLoader.item)
+        if (contextMenuLoader.item) {
+            MenuHelper.openMenu(contextMenuLoader.item)
+            console.warn("[AppItem] requestAppItemMenu: MenuHelper.openMenu called")
+        } else {
+            console.warn("[AppItem] requestAppItemMenu: contextMenuLoader.item is null, cannot open menu!")
+        }
     }
 
     MouseArea {
@@ -495,6 +517,12 @@ Item {
         }
 
         onPressed: function (mouse) {
+            console.warn("[AppItem] onPressed triggered, itemId:", root.itemId,
+                         "button:", mouse.button,
+                         "buttons:", mouse.buttons,
+                         "source:", mouse.source,
+                         "isTouchDevice:", mouse.source === Qt.TouchScreen,
+                         "acceptedButtons:", mouseArea.acceptedButtons)
             if (mouse.button === Qt.LeftButton) {
                 appItem.grabToImage(function(result) {
                     root.Drag.imageSource = result.url;
@@ -503,15 +531,34 @@ Item {
             toolTip.close()
             closeItemPreview()
         }
+        onReleased: function (mouse) {
+            console.warn("[AppItem] onReleased triggered, itemId:", root.itemId,
+                         "button:", mouse.button,
+                         "buttons:", mouse.buttons,
+                         "source:", mouse.source)
+        }
         // touchscreen long press.
         onPressAndHold: function (mouse) {
+            console.warn("[AppItem] onPressAndHold triggered, itemId:", root.itemId,
+                         "button:", mouse.button,
+                         "buttons:", mouse.buttons,
+                         "source:", mouse.source,
+                         "button===NoButton:", mouse.button === Qt.NoButton,
+                         "isTouchDevice:", mouse.source === Qt.TouchScreen)
             if (mouse.button === Qt.NoButton) {
+                console.warn("[AppItem] onPressAndHold: calling requestAppItemMenu for touchscreen")
                 requestAppItemMenu()
+            } else {
+                console.warn("[AppItem] onPressAndHold: button is NOT NoButton, skipping menu. button=", mouse.button)
             }
         }
         onClicked: function (mouse) {
+            console.warn("[AppItem] onClicked triggered, itemId:", root.itemId,
+                         "button:", mouse.button,
+                         "source:", mouse.source)
             let index = root.modelIndex;
             if (mouse.button === Qt.RightButton) {
+                console.warn("[AppItem] onClicked: right button, calling requestAppItemMenu")
                 requestAppItemMenu()
             } else {
                 if (root.windows.length === 0) {

@@ -66,6 +66,7 @@ Window {
     }
 
     function requestShowDockMenu() {
+        console.warn("[DockMain] requestShowDockMenu called, dockMenuLoader.item:", dockMenuLoader.item)
         // maybe has popup visible, close it.
         Panel.requestClosePopup()
         viewDeactivated()
@@ -426,6 +427,7 @@ Window {
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             gesturePolicy: TapHandler.WithinBounds
             onTapped: function(eventPoint, button) {
+                console.warn("[DockMain] TapHandler(mouse) onTapped, button:", button, "pos:", eventPoint.position)
                 let lastActive = MenuHelper.activeMenu
                 MenuHelper.closeCurrent()
                 dockMenuLoader.active = true
@@ -445,6 +447,7 @@ Window {
             acceptedButtons: Qt.NoButton
             acceptedDevices: PointerDevice.TouchScreen
             onTapped: function(eventPoint, button) {
+                console.warn("[DockMain] TapHandler(touch) onTapped, pos:", eventPoint.position)
                 let lastActive = MenuHelper.activeMenu
                 MenuHelper.closeCurrent()
                 dockMenuLoader.active = true
@@ -453,6 +456,7 @@ Window {
                 viewDeactivated()
             }
             onLongPressed: {
+                console.warn("[DockMain] TapHandler(touch) onLongPressed, opening dock menu")
                 let lastActive = MenuHelper.activeMenu
                 MenuHelper.closeCurrent()
                 dockMenuLoader.active = true
