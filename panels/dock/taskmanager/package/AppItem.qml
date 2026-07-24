@@ -24,6 +24,9 @@ Item {
     required property int visualIndex
     required property var modelIndex
     required property string title
+    required property var groupItems
+    readonly property bool isGroup: itemId.indexOf("internal/folders/") === 0
+    readonly property bool useCompositePreview: root.isGroup
 
     property real blendOpacity: 1.0
     property bool dragEnabled: true
@@ -160,6 +163,7 @@ Item {
             D.DciIcon {
                 id: icon
                 name: root.iconName
+                visible: !root.useCompositePreview
                 height: iconSize
                 width: iconSize
                 sourceSize: Qt.size(iconSize, iconSize)
@@ -238,6 +242,44 @@ Item {
                     target: icon
                     loops: 1
                     running: false
+                }
+            }
+
+            Item {
+                anchors.centerIn: parent
+                width: root.iconSize
+                height: root.iconSize
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: Math.max(6, Math.round(root.iconSize / 4))
+                    color: root.colorTheme === Dock.Dark ?
+                               Qt.rgba(1, 1, 1, 0.10) :
+                               Qt.rgba(0, 0, 0, 0.10)
+                    border.width: 1
+                    border.color: root.colorTheme === Dock.Dark ?
+                                      Qt.rgba(1, 1, 1, 0.40) :
+                                      Qt.rgba(0, 0, 0, 0.20)
+                    visible: root.useCompositePreview
+                }
+
+                Grid {
+                    anchors.centerIn: parent
+                    visible: root.useCompositePreview
+                    columns: 2
+                    spacing: Math.max(1, Math.round(root.iconSize * 0.04))
+
+                    Repeater {
+                        model: Math.min(4, root.groupItems.length)
+                        D.DciIcon {
+                            required property int index
+                            width: Math.round(root.iconSize * 0.34)
+                            height: width
+                            sourceSize: Qt.size(width, height)
+                            name: root.groupItems[index].iconName
+                            retainWhileLoading: true
+                        }
+                    }
                 }
             }
         }
@@ -452,7 +494,7 @@ Item {
 
 
     function onEntered() {
-        if (windows.length === 0) {
+        if (root.isGroup || windows.length === 0) {
             toolTipShowTimer.start()
             return
         }
@@ -476,6 +518,23 @@ Item {
             return
         }
         closeItemPreview()
+    }
+
+    function toggleGroupPopup() {
+        toolTip.close()
+        Panel.requestClosePopup()
+        const point = icon.mapToItem(null, icon.width / 2, icon.height / 2)
+        groupPopup.openAt(point)
+    }
+
+    FolderPopup {
+        id: groupPopup
+        groupName: root.name
+        groupItems: root.groupItems
+        displayMode: root.displayMode
+        onLaunchApplicationRequested: function(desktopId) {
+            taskmanager.Applet.launchGroupApplication(desktopId)
+        }
     }
 
     function closeItemPreview() {
@@ -543,6 +602,10 @@ Item {
             if (mouse.button === Qt.RightButton) {
                 requestAppItemMenu()
             } else {
+                if (root.isGroup) {
+                    toggleGroupPopup()
+                    return
+                }
                 if (root.windows.length === 0) {
                     launchAnimation.start();
                     TaskManager.requestNewInstance(index, "");

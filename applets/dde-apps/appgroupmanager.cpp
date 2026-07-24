@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2024 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -87,8 +87,8 @@ QModelIndex AppGroupManager::groupIndexById(int groupId)
 {
     for (int i = 0; i < rowCount(); i++) {
         auto groupIndex = index(i, 0);
-        auto data = groupIndex.data(GroupIdRole);
-        if (data.toInt() == groupId) {
+        auto appGroup = static_cast<AppGroup *>(itemFromIndex(groupIndex));
+        if (appGroup && appGroup->folderId() == groupId) {
             return groupIndex;
         }
     }
@@ -347,8 +347,8 @@ void AppGroupManager::loadAppGroupInfo()
     }
 
     // always ensure top-level group exists
-    if (rowCount() == 0) {
-        auto p = appendGroup(assignGroupId(), "Top Level", {});
+    if (!group(TOPLEVEL_FOLDERID)) {
+        auto p = appendGroup(AppGroup::groupIdFromNumber(TOPLEVEL_FOLDERID), "Top Level", {});
         Q_ASSERT(p->folderId() == TOPLEVEL_FOLDERID);
     }
 }
@@ -370,18 +370,19 @@ void AppGroupManager::saveAppGroupInfo()
 
 QString AppGroupManager::assignGroupId() const
 {
-    QStringList knownGroupIds;
+    QSet<int> knownGroupIds;
     for (int i = 0; i < rowCount(); i++) {
-        auto group = index(i, 0);
-        knownGroupIds.append(group.data(AppItemModel::DesktopIdRole).toString());
+        auto appGroup = static_cast<AppGroup *>(itemFromIndex(index(i, 0)));
+        if (appGroup && appGroup->folderId() >= 0)
+            knownGroupIds.insert(appGroup->folderId());
     }
 
-    int idNumber = 0;
-    while (knownGroupIds.contains(QString("internal/group/%1").arg(idNumber))) {
+    int idNumber = 1;
+    while (knownGroupIds.contains(idNumber)) {
         idNumber++;
     }
 
-    return QString("internal/group/%1").arg(idNumber);
+    return AppGroup::groupIdFromNumber(idNumber);
 }
 
 AppGroup * AppGroupManager::appendGroup(int groupId, QString groupName, const QList<QStringList> &appItemIDs)
