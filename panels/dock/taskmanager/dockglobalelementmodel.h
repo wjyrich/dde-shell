@@ -7,6 +7,7 @@
 #include "dockcombinemodel.h"
 #include <QAbstractProxyModel>
 #include <QPointer>
+#include "foldercontent.h"
 #include <tuple>
 
 namespace dock
@@ -17,6 +18,8 @@ class DockGlobalElementModel : public QAbstractListModel, public AbstractTaskMan
 public:
     explicit DockGlobalElementModel(QAbstractItemModel *appsModel, DockCombineModel *activeAppModel, QObject *parent = nullptr);
 
+    void setApplicationFolderModel(QAbstractItemModel *model);
+    bool containsApplicationFolder(const QString &id) const;
     QHash<int, QByteArray> roleNames() const override;
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
     QModelIndex parent(const QModelIndex &child) const override;
@@ -40,9 +43,20 @@ public:
 
 public slots:
     void initDockedElements(bool unused);
+    void syncApplicationFolders();
 
 private:
+    QModelIndex applicationFolderIndex(const QString &id) const;
+    QString applicationFolderName(const QString &id) const;
+    QVariantList applicationFolderContents(const QString &id) const;
     void loadDockedElements();
+    void ensureFolderPresentation(const QString &id);
+    // Repoint a folder pin at the new id its provider resolved after a rename,
+    // so the persisted reference stays usable instead of pointing at a dead path.
+    void rebindFolderElement(DS_NAMESPACE::FolderPresentation *presentation, const QString &newId);
+    // Drop a folder pin whose directory was deleted, so the dock does not keep
+    // an entry that can never show contents.
+    void dropFolderElement(DS_NAMESPACE::FolderPresentation *presentation);
     QString getMenus(const QModelIndex &index) const;
     void groupItemsByApp();
     int findActiveRowByDesktopId(const QString &id) const;
@@ -53,6 +67,8 @@ private:
 
     // type, id
     QList<std::tuple<QString, QString>> m_dockedElements;
+    QPointer<QAbstractItemModel> m_applicationFolderModel;
+    QHash<QString, DS_NAMESPACE::FolderPresentation *> m_folderPresentations;
     QAbstractItemModel *m_appsModel;
     DockCombineModel *m_activeAppModel;
 };

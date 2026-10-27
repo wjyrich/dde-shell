@@ -9,6 +9,7 @@
 #include "taskmanagersettings.h"
 
 #include <QAbstractListModel>
+#include <QCoreApplication>
 #include <QDBusConnection>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -324,6 +325,9 @@ DockGlobalElementModel::DockGlobalElementModel(QAbstractItemModel *appsModel, Do
 QHash<int, QByteArray> DockGlobalElementModel::roleNames() const
 {
     return {
+        {TaskManager::ApplicationFolderContentsRole, MODEL_APPLICATIONFOLDERCONTENTS},
+        {TaskManager::FolderTypeRole, MODEL_FOLDERTYPE},
+        {TaskManager::FolderPresentationRole, MODEL_FOLDERPRESENTATION},
         {TaskManager::ItemIdRole, MODEL_ITEMID},
         {TaskManager::NameRole, MODEL_NAME},
         {TaskManager::IconNameRole, MODEL_ICONNAME},
@@ -368,12 +372,15 @@ void DockGlobalElementModel::loadDockedElements()
     if (TaskManagerSettings::instance()->dockedApplicationsEnabled()) {
         for (auto elementInfo : TaskManagerSettings::instance()->dockedElements()) {
             auto pair = elementInfo.split('/');
-            if (pair.size() != 2)
-                continue;
+            const bool content = DS_NAMESPACE::FolderContentRegistry::isReference(elementInfo);
+            const bool folder = content || elementInfo.startsWith("internal/folders/");
+            if (!folder && (pair.size() != 2 || pair[0] != "desktop")) continue;
+            if (folder && !content && !containsApplicationFolder(elementInfo)) continue;
+            auto type = folder ? QStringLiteral("group") : pair[0];
+            auto id = folder ? elementInfo : pair[1];
 
-            auto type = pair[0];
-            auto id = pair[1];
-
+            if (content)
+                ensureFolderPresentation(id);
             auto tmp = std::make_tuple(type, id);
 
             // check desktop is installed
@@ -387,17 +394,31 @@ void DockGlobalElementModel::loadDockedElements()
                 row = res.row();
             }
 
+            if (newDocked.contains(tmp)) continue;
             newDocked.append(tmp);
-            if (m_dockedElements.contains(tmp))
-                continue;
 
             auto isRunning = std::any_of(m_data.constBegin(), m_data.constEnd(), [&id](const auto &data) {
                 return std::get<0>(data) == id;
             });
 
             if (!isRunning) {
-                beginInsertRows(QModelIndex(), m_data.size(), m_data.size());
-                m_data.append(std::make_tuple(id, model, row));
+                // A folder can arrive before the applications provider is ready.
+                // Insert newly available pins relative to their configured peers,
+                // rather than appending and losing the saved mixed folder/app order.
+                int position = m_data.size();
+                const auto configured = TaskManagerSettings::instance()->dockedElements();
+                for (int next = configured.indexOf(elementInfo) + 1; next < configured.size(); ++next) {
+                    const auto nextId = configured[next].startsWith("desktop/") ? configured[next].mid(8) : configured[next];
+                    auto following = std::find_if(m_data.cbegin(), m_data.cend(), [&nextId](const auto &entry) {
+                        return std::get<0>(entry) == nextId;
+                    });
+                    if (following != m_data.cend()) {
+                        position = following - m_data.cbegin();
+                        break;
+                    }
+                }
+                beginInsertRows(QModelIndex(), position, position);
+                m_data.insert(position, std::make_tuple(id, model, row));
                 endInsertRows();
             }
         }
@@ -408,7 +429,7 @@ void DockGlobalElementModel::loadDockedElements()
             continue;
         auto type = std::get<0>(*it), id = std::get<1>(*it);
         auto dataIt = std::find_if(m_data.begin(), m_data.end(), [this, &id](const auto &data) {
-            return std::get<0>(data) == id && std::get<1>(data) == m_appsModel;
+            return std::get<0>(data) == id && (std::get<1>(data) == m_appsModel || std::get<1>(data) == nullptr);
         });
         if (dataIt != m_data.end()) {
             auto pos = (dataIt - m_data.begin());
@@ -420,12 +441,47 @@ void DockGlobalElementModel::loadDockedElements()
 
     m_dockedElements = newDocked;
 
+    for (const auto &id : m_folderPresentations.keys()) {
+        if (!newDocked.contains(std::make_tuple(QStringLiteral("group"), id))) {
+            if (auto presentation = m_folderPresentations.take(id)) presentation->deleteLater();
+        }
+    }
+
     qCDebug(dockGlobalElementModelLog) << "loaded docked elements count:" << m_dockedElements.count() << "appsModel row count:" << m_appsModel->rowCount();
 
     if (!m_data.isEmpty()) {
         // MenusRole should also be handled here due to it contains the copywriting of docked or undocked
-        Q_EMIT dataChanged(index(0, 0), index(m_data.size() - 1, 0), {TaskManager::DockedRole, TaskManager::MenusRole, TaskManager::IconNameRole, TaskManager::NameRole});
+        Q_EMIT dataChanged(index(0, 0), index(m_data.size() - 1, 0), {TaskManager::DockedRole, TaskManager::MenusRole, TaskManager::IconNameRole, TaskManager::NameRole, TaskManager::ApplicationFolderContentsRole});
     }
+}
+
+void DockGlobalElementModel::ensureFolderPresentation(const QString &id)
+{
+    if (m_folderPresentations.contains(id))
+        return;
+
+    auto presentation = DS_NAMESPACE::FolderContentRegistry::instance()->create(id, this);
+    m_folderPresentations.insert(id, presentation);
+    if (!presentation)
+        return;
+
+    // Only refresh presentations still registered; removed objects may be
+    // waiting for deferred deletion after an undock or rename.
+    connect(presentation, &DS_NAMESPACE::FolderPresentation::presentationChanged, this, [this, presentation] {
+        const auto id = m_folderPresentations.key(presentation);
+        if (id.isEmpty()) return;
+        for (int i = 0; i < m_data.size(); ++i)
+            if (std::get<0>(m_data.at(i)) == id)
+                emit dataChanged(index(i, 0), index(i, 0), {TaskManager::NameRole});
+    });
+    connect(presentation, &DS_NAMESPACE::FolderPresentation::identityChanged, this,
+            [this, presentation](const QString &newId) {
+                rebindFolderElement(presentation, newId);
+            });
+    connect(presentation, &DS_NAMESPACE::FolderPresentation::contentLost, this,
+            [this, presentation] {
+                dropFolderElement(presentation);
+            });
 }
 
 QString DockGlobalElementModel::getMenus(const QModelIndex &index) const
@@ -477,13 +533,51 @@ int DockGlobalElementModel::rowCount(const QModelIndex &parent) const
 
 QVariant DockGlobalElementModel::data(const QModelIndex &index, int role) const
 {
-    if (index.row() >= m_data.size())
+    if (!index.isValid() || index.row() >= m_data.size())
         return {};
 
     auto data = m_data.at(index.row());
     auto id = std::get<0>(data);
     auto model = std::get<1>(data);
     auto row = std::get<2>(data);
+
+    QString folderType;
+    if (!model) {
+        if (DS_NAMESPACE::FolderContentRegistry::isReference(id))
+            folderType = id.section('/', 1, 1);
+        else if (id.startsWith("internal/folders/"))
+            folderType = QStringLiteral("launcher");
+    }
+    if (!folderType.isEmpty()) {
+        const auto presentation = m_folderPresentations.value(id);
+        switch (role) {
+        case TaskManager::ItemIdRole:
+        case TaskManager::DesktopIdRole: return id;
+        case TaskManager::NameRole:
+            if (folderType != "launcher")
+                return presentation ? presentation->title() : tr("Folder");
+            return applicationFolderName(id);
+        case TaskManager::IconNameRole: return QStringLiteral("folder");
+        case TaskManager::WinTitleRole:
+        case TaskManager::WinIconRole: return QString();
+        case TaskManager::FolderTypeRole: return folderType;
+        case TaskManager::FolderPresentationRole: return QVariant::fromValue(static_cast<QObject *>(presentation));
+        case TaskManager::ApplicationFolderContentsRole:
+            if (folderType != "launcher")
+                return QVariantList();
+            return applicationFolderContents(id);
+        case TaskManager::WindowsRole: return QStringList();
+        case TaskManager::ActiveRole:
+        case TaskManager::AttentionRole: return false;
+        case TaskManager::DockedRole: return true;
+        // FolderContextMenu obtains both standard and plugin actions on open.
+        case TaskManager::MenusRole: return QStringLiteral("[]");
+        default: return {};
+        }
+    }
+    if (role == TaskManager::FolderTypeRole) return QString();
+    if (role == TaskManager::ApplicationFolderContentsRole) return QVariantList();
+    if (role == TaskManager::FolderPresentationRole) return QVariant::fromValue(static_cast<QObject *>(nullptr));
 
     // cached sourceRow can be out of range after the apps model is rebuilt;
     // re-resolve by desktopId instead of reading a wrong row
@@ -534,6 +628,8 @@ QVariant DockGlobalElementModel::data(const QModelIndex &index, int role) const
 
 void DockGlobalElementModel::requestActivate(const QModelIndex &index) const
 {
+    if (!index.isValid() || index.row() >= m_data.size()) return;
+    if (!std::get<1>(m_data.at(index.row()))) return;
     auto data = m_data.value(index.row());
     auto id = std::get<0>(data);
     auto sourceModel = std::get<1>(data);
@@ -552,6 +648,8 @@ void DockGlobalElementModel::requestActivate(const QModelIndex &index) const
 
 void DockGlobalElementModel::requestNewInstance(const QModelIndex &index, const QString &action) const
 {
+    if (!index.isValid() || index.row() >= m_data.size()) return;
+    if (!std::get<1>(m_data.at(index.row()))) return;
     auto data = m_data.value(index.row());
     auto id = std::get<0>(data);
     qDebug(dockGlobalElementModelLog) << "Requesting new instance for index:" << index << "with action:" << action << "id:" << id;
@@ -580,6 +678,8 @@ void DockGlobalElementModel::requestNewInstance(const QModelIndex &index, const 
 
 void DockGlobalElementModel::requestOpenUrls(const QModelIndex &index, const QList<QUrl> &urls) const
 {
+    if (!index.isValid() || index.row() >= m_data.size()) return;
+    if (!std::get<1>(m_data.at(index.row()))) return;
     auto data = m_data.value(index.row());
     auto id = std::get<0>(data);
 
@@ -599,6 +699,8 @@ void DockGlobalElementModel::requestOpenUrls(const QModelIndex &index, const QLi
 
 void DockGlobalElementModel::requestClose(const QModelIndex &index, bool force) const
 {
+    if (!index.isValid() || index.row() >= m_data.size()) return;
+    if (!std::get<1>(m_data.at(index.row()))) return;
     auto data = m_data.value(index.row());
     auto id = std::get<0>(data);
     auto sourceModel = std::get<1>(data);
@@ -615,6 +717,8 @@ void DockGlobalElementModel::requestClose(const QModelIndex &index, bool force) 
 
 void DockGlobalElementModel::requestUpdateWindowIconGeometry(const QModelIndex &index, const QRect &geometry, QObject *delegate) const
 {
+    if (!index.isValid() || index.row() >= m_data.size()) return;
+    if (!std::get<1>(m_data.at(index.row()))) return;
     auto data = m_data.value(index.row());
     auto id = std::get<0>(data);
     auto sourceModel = std::get<1>(data);
@@ -689,4 +793,102 @@ void DockGlobalElementModel::groupItemsByApp()
         i = insertPos - 1;
     }
 }
+void DockGlobalElementModel::setApplicationFolderModel(QAbstractItemModel *model)
+{
+    if (m_applicationFolderModel) disconnect(m_applicationFolderModel, nullptr, this, nullptr);
+    m_applicationFolderModel = model;
+    if (model) {
+        // One notification after the complete operation also covers row changes.
+        connect(model, SIGNAL(arrangementChanged()), this, SLOT(syncApplicationFolders()));
+    }
+    syncApplicationFolders();
+}
+
+QString DockGlobalElementModel::applicationFolderName(const QString &id) const
+{
+    const auto folder = applicationFolderIndex(id);
+    if (!folder.isValid()) return {};
+    const int role = m_applicationFolderModel->roleNames().key(MODEL_NAME, -1);
+    const QString name = role >= 0 ? folder.data(role).toString() : QString();
+    if (name.startsWith("internal/category/")) {
+        static const char *names[] = {"Internet", "Chat", "Music", "Video", "Graphics", "Games", "Office", "Reading", "Development", "System", "Others"};
+        bool ok = false;
+        const int category = name.mid(18).toInt(&ok);
+        return QCoreApplication::translate("Main", names[ok && category >= 0 && category < 11 ? category : 10]);
+    }
+    return name;
+}
+
+QVariantList DockGlobalElementModel::applicationFolderContents(const QString &id) const
+{
+    QVariantMap info;
+    if (m_applicationFolderModel) QMetaObject::invokeMethod(m_applicationFolderModel, "folderInfo", Q_RETURN_ARG(QVariantMap, info), Q_ARG(QString, id));
+    return info.value("contents").toList();
+}
+
+void DockGlobalElementModel::rebindFolderElement(DS_NAMESPACE::FolderPresentation *presentation, const QString &newId)
+{
+    const auto oldId = m_folderPresentations.key(presentation);
+    if (oldId.isEmpty()) return;
+
+    const auto registry = DS_NAMESPACE::FolderContentRegistry::instance();
+    const QString newReference = registry->referenceWithId(oldId, newId);
+    if (newReference.isEmpty()) return;
+    // The provider already reports the canonical form; a no-op means the item
+    // did not actually move and nothing has to be persisted.
+    if (registry->normalizeReference(newReference) == oldId) return;
+
+    auto settings = TaskManagerSettings::instance();
+    auto elements = settings->dockedElements();
+    const int position = elements.indexOf(oldId);
+    if (position < 0) return;
+    elements.replace(position, newReference);
+    settings->setDockedElements(elements);   // reloads this model with the new id
+
+    qCDebug(dockGlobalElementModelLog) << "folder pin rebound after rename:" << newReference;
+}
+
+void DockGlobalElementModel::dropFolderElement(DS_NAMESPACE::FolderPresentation *presentation)
+{
+    const auto lostId = m_folderPresentations.key(presentation);
+    if (lostId.isEmpty()) return;
+
+    auto settings = TaskManagerSettings::instance();
+    auto elements = settings->dockedElements();
+    if (elements.removeAll(lostId) == 0) return;
+    settings->setDockedElements(elements);   // reloads this model without the pin
+
+    qCDebug(dockGlobalElementModelLog) << "folder pin dropped, directory is gone:" << lostId;
+}
+
+QModelIndex DockGlobalElementModel::applicationFolderIndex(const QString &id) const
+{
+    if (!m_applicationFolderModel || !id.startsWith("internal/folders/") || id == "internal/folders/0") return {};
+    // Check identity independently of application metadata availability. Exact
+    // matching also rejects aliases and malformed external drag data.
+    const int role = m_applicationFolderModel->roleNames().key(MODEL_DESKTOPID, -1);
+    return role >= 0 ? m_applicationFolderModel->match(m_applicationFolderModel->index(0, 0), role, id, 1, Qt::MatchExactly).value(0) : QModelIndex();
+}
+
+bool DockGlobalElementModel::containsApplicationFolder(const QString &id) const
+{
+    return applicationFolderIndex(id).isValid();
+}
+
+void DockGlobalElementModel::syncApplicationFolders()
+{
+    if (!m_applicationFolderModel) return; // An unavailable provider is not a deleted folder.
+    auto settings = TaskManagerSettings::instance();
+    auto elements = settings->dockedElements();
+    bool removed = false;
+    for (auto it = elements.begin(); it != elements.end();) {
+        if (it->startsWith("internal/folders/") && !containsApplicationFolder(*it)) {
+            it = elements.erase(it);
+            removed = true;
+        } else ++it;
+    }
+    if (removed) settings->setDockedElements(elements);
+    else loadDockedElements();
+}
+
 }
