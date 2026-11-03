@@ -63,4 +63,11 @@
         <translation>%1个文件</translation>
     </message>
 </context>
+<context>
+    <name>TaskOverflowButton</name>
+    <message>
+        <source>Overflow area</source>
+        <translation>溢出區域</translation>
+    </message>
+</context>
 </TS>
